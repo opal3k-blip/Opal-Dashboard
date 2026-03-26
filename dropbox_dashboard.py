@@ -3,16 +3,25 @@ import pandas as pd
 import plotly.express as px
 import os
 import io
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
-# --- إعدادات الصفحة ---
+# --- 1. محاولة استيراد مكتبات PDF (مهم جداً) ---
+# لإنشاء ملفات PDF على خادم Streamlit Cloud، نحتاج لمكتبة ReportLab.
+# إذا لم يتم تثبيتها عبر ملف requirements.txt، سيعمل التطبيق بدونه ولكن لن يظهر زر تحميل PDF.
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    PDF_ENABLED = True
+except ModuleNotFoundError:
+    # في حال لم يتم تثبيت المكتبة، نقوم بإيقاف ميزة PDF لتجنب توقف التطبيق
+    PDF_ENABLED = False
+
+# --- 2. إعدادات الصفحة والتنسيق ---
 st.set_page_config(page_title="Dropbox 10K Dynamic Pro Dashboard", layout="wide")
 
-# --- تنسيق مخصص (CSS) لتحسين المظهر وجعل اللوحة احترافية جداً ---
+# --- تنسيق مخصص (CSS) لجعل اللوحة احترافية جداً ---
 st.markdown("""
 <style>
     /* تنسيق الحاوية الرئيسية للمؤشرات */
@@ -79,14 +88,12 @@ def load_data():
         return pd.DataFrame()
 
     try:
-        # قراءة البيانات الخام بأبسط طريقة ممكنة لتجنب مشاكل الترميز
-        # نخبره بوضوح أن الترميز هو utf-8 لقراءة الحروف العربية
+        # قراءة البيانات الخام بطريقة utf-8 لقراءة الحروف العربية
         df = pd.read_csv(data_file, encoding='utf-8') 
         df.dropna(how='all', inplace=True) # إزالة الصفوف الفارغة بالكامل
         
         # تحويل عمود الحجم إلى ميغابايت (MB) وجيجابايت (GB) من عمود 'Size (Bytes)' الموجود في ملفك
         if 'Size (Bytes)' in df.columns:
-            # التأكد من تحويل عمود الحجم إلى رقم ومعالجة القيم غير الرقمية
             df['Size (Bytes)'] = pd.to_numeric(df['Size (Bytes)'], errors='coerce').fillna(0)
             df['Size (MB)'] = df['Size (Bytes)'] / (1024 * 1024)
             df['Size (GB)'] = df['Size (MB)'] / 1024
@@ -96,9 +103,10 @@ def load_data():
         # --- الإجراء الحاسم: دمج كافة أقسام 'جدير' في ملف واحد ---
         # إنشاء عمود للشركة الرئيسية (الجزء الأول من المسار)
         df['top_folder'] = df['parent_path'].apply(lambda x: str(x).split('/')[0])
-        
-        # استبدال كافة المسارات التي تبدأ بـ 'Jadeer' لتصبح 'Jadeer' فقط في عمود الشركة الرئيسية
         df.loc[df['top_folder'].str.startswith('Jadeer'), 'top_folder'] = 'Jadeer'
+        
+        # حساب العمق الهرمي للمجلدات
+        df['path_depth_lvl'] = df['parent_path'].apply(lambda x: len(str(x).split('/')))
         
         return df
     except Exception as e:
@@ -185,7 +193,7 @@ def render_kpis(filtered_df, total_files_all, title_prefix="للكل"):
     return {
         "إجمالي الملفات": f"{num_total_files:,}",
         "إجمالي الحجم (GB)": f"{total_size_gb_all:.2f}",
-        "الشركة الأكثر استهلاكاً": f"{top_company} ({top_consumption_size_gb:.1f} GB)",
+        "الشركة الأكثر استهلاكاً": f"{top_consumption_company} ({top_consumption_size_gb:.1f} GB)",
         "أكبر ملف منفرد": f"{largest_file_info['Size (MB)']:.1f} MB",
         "النوع المهيمن (حجماً)": f".{top_ext_by_size} ({top_ext_size_gb:.1f} GB)",
         "عدد الشركات الرئيسية": f"{num_unique_companies}",
@@ -207,16 +215,17 @@ def to_excel(df):
     return processed_excel
 
 # --- دالة لإنشاء ملف PDF ملخص لصف المؤشرات (جديد) ---
-def create_pdf_summary(kpi_data, title_prefix):
+def create_pdf_summary_pro(kpi_data, title_prefix):
+    # لا نقوم بإنشاء PDF إلا إذا كانت المكتبة مثبتة
+    if not PDF_ENABLED:
+        return None
+        
     output = io.BytesIO()
     # إنشاء مستند PDF أنيق
     doc = SimpleDocTemplate(output, pagesize=letter)
     styles = getSampleStyleSheet()
     
     # تعريف تنسيقات مخصصة للحروف العربية (تحتاج لمكتبات إضافية، لذا سنبقي النص إنجليزي لضمان التشغيل)
-    # ملاحظة: ReportLab الأساسية لا تدعم اللغة العربية ديناميكياً بدون إعداد خطوط معقد، 
-    # لذا سنستخدم العناوين الإنجليزية المقابلة في الـ PDF لضمان التشغيل لدى العميل.
-    
     story = []
     
     # العنوان الرئيسي
@@ -356,7 +365,6 @@ else:
     ext_formatted_view['النسبة مئوية (%)'] = ext_formatted_view['النسبة مئوية (%)'].map('{:.1f}%'.format)
     
     # عرض الجدول التحليلي المتقدم
-    st.markdown("#### جدول تحليلي لمحتويات وأنواع الملفات وحجومها ونسبها الحقيقية:")
     st.dataframe(ext_formatted_view, use_container_width=True, height=400)
     
     chart_col1, chart_col2 = st.columns(2)
@@ -373,13 +381,13 @@ else:
 
     st.markdown("---")
 
-    # --- 5. خانات تحميل التقرير (جديد ومطور) ---
-    st.markdown("<h2 class='section-header'>📥 تحميل تقارير الأداء والبيانات (Excel & PDF)</h2>", unsafe_allow_html=True)
-    st.write("احصل على تقارير مفصلة لبياناتك الـ 10,000 بتنسيقات مختلفة:")
+    # --- 5. خانات تحميل التقرير بتنسيق Excel & PDF (تعديل جذري) ---
+    st.markdown("<h2 class='section-header'>📥 تحميل تقارير الأداء والبيانات الكاملة (Excel & PDF)</h2>", unsafe_allow_html=True)
+    st.write("احصل على ملفات مفصلة لبياناتك الـ 10,000 بتنسيقات مختلفة:")
     
     col_dl1, col_dl2 = st.columns(2)
     
-    # تحميل Excel (البيانات الكاملة)
+    # تحميل Excel (البيانات الكاملة - مضمونة التشغيل دائماً)
     with col_dl1:
         st.markdown("#### 🟢 تحميل البيانات الكاملة بتنسيق Excel")
         st.write("تحميل ملف Excel يحتوي على كافة الصفوف الـ 10,000 الحقيقية والتفاصيل الكاملة.")
@@ -392,19 +400,24 @@ else:
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
         
-    # تحميل PDF (الملخص)
+    # تحميل PDF (الملخص) - يتم تفعيله كشرطياً
     with col_dl2:
         st.markdown("#### 🔴 تحميل ملخص الأداء بتنسيق PDF")
-        st.write("تحميل تقرير PDF أنيق يحتوي على ملخص لصف المؤشرات الـ 12 الرئيسية الحالية.")
-        # إنشاء ملف PDF خارج الدالة لضمان توفر البيانات
-        # يتم تمرير المؤشرات والعنوان الحاليين (الديناميكيين بناءً على الفلتر)
-        pdf_summary_report = create_pdf_summary(current_kpi_values, current_title_prefix)
-        st.download_button(
-            label="📥 تحميل ملخص الأداء بتنسيق PDF",
-            data=pdf_summary_report,
-            file_name=f'dropbox_kpi_summary_{current_title_prefix.replace(": ", "_")}.pdf',
-            mime='application/pdf'
-        )
+        if PDF_ENABLED:
+            st.write("تحميل تقرير PDF أنيق يحتوي على ملخص لصف المؤشرات الـ 12 الرئيسية الحالية.")
+            # إنشاء ملف PDF خارج الدالة لضمان توفر البيانات
+            pdf_summary_report = create_pdf_summary_pro(current_kpi_values, current_title_prefix)
+            st.download_button(
+                label="📥 تحميل ملخص الأداء بتنسيق PDF",
+                data=pdf_summary_report,
+                file_name=f'dropbox_kpi_summary_{current_title_prefix.replace(": ", "_")}.pdf',
+                mime='application/pdf'
+            )
+        else:
+            # رسالة تعليمية في حال لم يتم تثبيت مكتبة PDF على خادم Streamlit Cloud
+            st.warning("⚠️ ميزة الـ PDF متوقفة حالياً. \n\n**لتفعيل زر تحميل PDF**، يجب عليك التأكد من إضافة مكتبة `reportlab` إلى ملف **`requirements.txt`** في مجلد مشروعك على GitHub.")
+            st.write("محتوى ملف requirements.txt المقترح:")
+            st.code("reportlab\npandas\nplotly\nstreamlit\nxlsxwriter")
 
 st.markdown("---")
 st.caption("تم إنشاء هذه اللوحة الاحترافية ببياناتك الفعلية من ملف 'خريطة ملفات الدروبكس.csv' باستخدام Streamlit, Pandas, & Plotly.")
