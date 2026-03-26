@@ -3,16 +3,12 @@ import pandas as pd
 import plotly.express as px
 import os
 import io
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
-# --- إعدادات الصفحة ---
+# --- 1. إعدادات الصفحة والتنسيق الأساسي (المطور) ---
+# سيعمل هذا الكود فوراً بدون الحاجة لتثبيت أي مكتبات PDF (مثل ReportLab)
 st.set_page_config(page_title="Dropbox 10K Dynamic Pro Dashboard", layout="wide")
 
-# --- تنسيق مخصص (CSS) لتحسين المظهر وجعل اللوحة احترافية جداً ---
+# --- تنسيق مخصص (CSS) لجعل اللوحة احترافية جداً ---
 st.markdown("""
 <style>
     /* تنسيق الحاوية الرئيسية للمؤشرات */
@@ -67,9 +63,9 @@ st.markdown("""
 st.title("📊 لوحة تحكم Dropbox الاحترافية الديناميكية (تحليل عميق لـ 10K ملف)")
 st.markdown("---")
 
-# --- دالة لتحميل وتنظيف البيانات (مع دمج 'جدير' وطريقة مضمونة) ---
+# --- دالة لتحميل وتنظيف البيانات (مع دمج 'جدير' وطريقة مضمونة وآمنة) ---
 @st.cache_data
-def load_data():
+def load_data_safe():
     # اسم ملف البيانات الفعلي الذي قدمته (يجب أن يكون في نفس مجلد الكود)
     data_file = 'خريطة_ملفات_الدروبكس_المعدلة.csv'
     
@@ -79,14 +75,13 @@ def load_data():
         return pd.DataFrame()
 
     try:
-        # قراءة البيانات الخام بأبسط طريقة ممكنة لتجنب مشاكل الترميز
-        # نخبره بوضوح أن الترميز هو utf-8 لقراءة الحروف العربية
+        # قراءة البيانات الخام بطريقة utf-8 لقراءة الحروف العربية (آمنة)
         df = pd.read_csv(data_file, encoding='utf-8') 
         df.dropna(how='all', inplace=True) # إزالة الصفوف الفارغة بالكامل
         
         # تحويل عمود الحجم إلى ميغابايت (MB) وجيجابايت (GB) من عمود 'Size (Bytes)' الموجود في ملفك
         if 'Size (Bytes)' in df.columns:
-            # التأكد من تحويل عمود الحجم إلى رقم ومعالجة القيم غير الرقمية
+            # التأكد من تحويل عمود الحجم إلى رقم ومعالجة القيم غير الرقمية (آمنة)
             df['Size (Bytes)'] = pd.to_numeric(df['Size (Bytes)'], errors='coerce').fillna(0)
             df['Size (MB)'] = df['Size (Bytes)'] / (1024 * 1024)
             df['Size (GB)'] = df['Size (MB)'] / 1024
@@ -105,10 +100,11 @@ def load_data():
         
         return df
     except Exception as e:
-        st.error(f"حدث خطأ أثناء قراءة الملف أو تحليله: {e}")
+        # في حال حدوث خطأ، قم بطباعة رسالة واضحة للمستخدم
+        st.error(f"⚠️ حدث خطأ أثناء قراءة الملف أو تحليله: {e}")
         return pd.DataFrame()
 
-# --- دالة لإنشاء مؤشرات KPIs احترافية وديناميكية ومضمونة التشغيل (12 مؤشر) ---
+# --- دالة لإنشاء مؤشرات KPIs احترافية وديناميكية ومضمونة التشغيل (12 مؤشر كامل) ---
 def render_kpis(filtered_df, total_files_all, title_prefix="للكل"):
     st.markdown(f"<h3 class='section-header'>📌 مؤشرات أداء رئيسية متقدمة لـ 10K ملف الحقيقيين ({title_prefix})</h3>", unsafe_allow_html=True)
     
@@ -127,10 +123,10 @@ def render_kpis(filtered_df, total_files_all, title_prefix="للكل"):
     largest_file_info = filtered_df.sort_values(by='Size (MB)', ascending=False).iloc[0]
 
     # النوع المهيمن (حجماً)
+    total_mb_all_for_dominance = filtered_df['Size (MB)'].sum()
     top_ext_by_size = filtered_df.groupby('extension')['Size (MB)'].sum().idxmax()
     top_ext_size_gb = filtered_df.groupby('extension')['Size (GB)'].sum().max()
-    total_size_mb_all = filtered_df['Size (MB)'].sum()
-    top_ext_percentage = (top_ext_size_gb * 1024 / total_size_mb_all) * 100 if total_size_mb_all > 0 else 0
+    top_ext_percentage = (top_ext_size_gb * 1024 / total_mb_all_for_dominance) * 100 if total_mb_all_for_dominance > 0 else 0
 
     # عدد الشركات الرئيسية المدمجة
     num_unique_companies = len(filtered_df['top_folder'].unique())
@@ -159,8 +155,6 @@ def render_kpis(filtered_df, total_files_all, title_prefix="للكل"):
     # متوسط عدد الملفات لكل شركة
     avg_files_per_company_num = num_total_files / num_unique_companies if num_unique_companies > 0 else 0
     # أكثر المجلدات عمقاً
-    # حساب المسار الهرمي للوضوح
-    filtered_df['path_depth_lvl'] = filtered_df['parent_path'].apply(lambda x: len(str(x).split('/')))
     max_h_depth = filtered_df['path_depth_lvl'].max()
     # عدد الامتدادات المختلفة
     num_unique_extensions = len(filtered_df['extension'].unique())
@@ -184,94 +178,128 @@ def render_kpis(filtered_df, total_files_all, title_prefix="للكل"):
     with col12:
          st.markdown(f"<div class='kpi-card'><div class='kpi-title'>متوسط الحجم/شركة</div><div class='kpi-value'>{avg_size_per_company_gb:.1f}</div><div class='kpi-sub'>GB لكل شركة</div></div>", unsafe_allow_html=True)
 
-    # إرجاع المؤشرات لاستخدامها في تقرير الـ PDF
-    return {
-        "إجمالي الملفات": f"{num_total_files:,}",
-        "إجمالي الحجم (GB)": f"{total_size_gb_all:.2f}",
-        "الشركة الأكثر استهلاكاً": f"{top_consumption_company} ({top_consumption_size_gb:.1f} GB)",
-        "أكبر ملف منفرد": f"{largest_file_info['Size (MB)']:.1f} MB",
-        "النوع المهيمن (حجماً)": f".{top_ext_by_size} ({top_ext_size_gb:.1f} GB)",
-        "عدد الشركات الرئيسية": f"{num_unique_companies}",
-        "متوسط حجم الملف (MB)": f"{avg_size_mb_all:.2f}",
-        "متوسط الملفات/شركة": f"{avg_files_per_company_num:.1f}",
-        "أكثر المجلدات عمقاً": f"{max_h_depth} levels",
-        "تنوع الملفات (امتدادات)": f"{num_unique_extensions}",
-        "نسبة دمج 'جدير'": f"{jadeer_percentage_val:.1f}%",
-        "متوسط الحجم/شركة (GB)": f"{avg_size_per_company_gb:.1f}"
-    }
-
-# --- دالة لإنشاء ملف Excel للتحميل (موجودة سابقاً) ---
-def to_excel(df):
+# --- دالة لإنشاء ملف Excel للتحميل (مضمونة ومحسنة) ---
+def to_excel_safe(df):
     output = io.BytesIO()
-    # استخدام محرك xlsxwriter لدعم التنسيق المتقدم
+    # استخدام محرك xlsxwriter لدعم التنسيق المتقدم وضمان التشغيل (محسن)
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='DropboxData')
     processed_excel = output.getvalue()
     return processed_excel
 
-# --- دالة لإنشاء ملف PDF ملخص لصف المؤشرات (جديد) ---
-def create_pdf_summary(kpi_data, title_prefix):
-    output = io.BytesIO()
-    # إنشاء مستند PDF أنيق
-    doc = SimpleDocTemplate(output, pagesize=letter)
-    styles = getSampleStyleSheet()
-    
-    # تعريف تنسيقات مخصصة للحروف العربية (تحتاج لمكتبات إضافية، لذا سنبقي النص إنجليزي لضمان التشغيل)
-    story = []
-    
-    # العنوان الرئيسي
-    title_style = ParagraphStyle(name='TitleStyle', parent=styles['Title'], fontSize=18, spaceAfter=20)
-    title_text = f"Dropbox 10K Files Summary Report ({title_prefix})"
-    story.append(Paragraph(title_text, title_style))
-    story.append(Spacer(1, 12))
-    
-    # إنشاء جدول للمؤشرات الـ 12
-    # سنقوم بترجمة المفاتيح للإنجليزية لضمان ظهورها في PDF بدون مكتبات خطوط إضافية
-    translations = {
-        "إجمالي الملفات": "Total Files",
-        "إجمالي الحجم (GB)": "Total Size (GB)",
-        "الشركة الأكثر استهلاكاً": "Top Company (Consumption)",
-        "أكبر ملف منفرد": "Largest Single File",
-        "النوع المهيمن (حجماً)": "Dominant Type (by Size)",
-        "عدد الشركات الرئيسية": "No. of Main Companies",
-        "متوسط حجم الملف (MB)": "Avg. File Size (MB)",
-        "متوسط الملفات/شركة": "Avg. Files per Company",
-        "أكثر المجلدات عمقاً": "Max. Folder Depth",
-        "تنوع الملفات (امتدادات)": "File Type Diversity",
-        "نسبة دمج 'جدير'": "'Jadeer' Merge Percentage",
-        "متوسط الحجم/شركة (GB)": "Avg. Size per Company (GB)"
-    }
-    
-    data = [["KPI Metric", "Value"]] # عنوان الجدول
-    for key, value in kpi_data.items():
-        data.append([translations[key], value])
-        
-    # تنسيق الجدول
-    table = Table(data, colWidths=[250, 200])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.dodgerblue),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-        ('GRID', (0, 0), (-1, -1), 1, colors.lightgrey),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    
-    story.append(table)
-    
-    # إنشاء الـ PDF
-    doc.build(story)
-    pdf_out = output.getvalue()
-    return pdf_out
-
 # --- تحميل البيانات (هنا يتم تعريف متغير df) ---
-# نقوم بوضع تحميل البيانات خارج st.empty() لضمان التنفيذ أولاً
-main_df = load_data()
+# نقوم بوضع تحميل البيانات خارج st.empty() لضمان التنفيذ أولاً (طريقة آمنة)
+main_df = load_data_safe()
 
 # --- التحقق من نجاح تحميل البيانات ---
 # إذا كانت البيانات فارغة، فهذا يعني أن دالة تحميل البيانات فشلت وطبعت رسالة الخطأ الخاصة بها.
 if main_df.empty:
+    st.warning("⚠️ لا يمكن تحميل لوحة التحكم لعدم توفر البيانات. يرجى مراجعة رسالة الخطأ أعلاه.")
+else:
+    # استخلاص كافة المسارات الفرعية العميقة
+    all_parent_paths_list = sorted(list(main_df['parent_path'].unique()))
+    
+    # --- 1. قائمة منسدلة ديناميكية للفلترة ---
+    st.markdown("<h2 class='section-header'>📂 فلترة البيانات واستكشاف المجلدات الديناميكية</h2>", unsafe_allow_html=True)
+    st.write("اختر مجلداً محدداً من القائمة أدناه لتحديث لوحة التحكم بالكامل فوراً:")
+    
+    # إنشاء القائمة: الكل + الشركات الرئيسية المدمجة + المجلدات الفرعية العميقة
+    dropdown_filter_options = ["(عرض كامل الـ 10,000 ملف الحقيقيين)"] + sorted(list(main_df['top_folder'].unique())) + all_parent_paths_list
+    selected_filter_val = st.selectbox("", dropdown_filter_options, index=0)
+    
+    st.markdown("---")
+
+    # --- 2. إدارة الـ KPIs الديناميكية بناءً على الفلتر (12 مؤشر) ---
+    if selected_filter_val == "(عرض كامل الـ 10,000 ملف الحقيقيين)":
+        render_kpis(main_df, len(main_df), "للكل الحقيقيين - تم دمج 'جدير'")
+        current_data_view = main_df.copy()
+    elif selected_filter_val in main_df['top_folder'].unique():
+        # النقر على الشركة الرئيسية المدمجة
+        filtered_view_df = main_df[main_df['top_folder'] == selected_filter_val].copy()
+        render_kpis(filtered_view_df, len(main_df), f"لشركة: {selected_filter_val}")
+        current_data_view = filtered_view_df.copy()
+    else:
+         # النقر على مجلد فرعي عميق
+         filtered_view_df = main_df[main_df['parent_path'].str.startswith(str(selected_filter_val))].copy()
+         render_kpis(filtered_view_df, len(main_df), f"للمجلد: {selected_filter_val}")
+         current_data_view = filtered_view_df.copy()
+
+    st.markdown("---")
+
+    # --- 3. التحليل الهرمي العميق (Sunburst Chart) - تفاعلي وآمن ---
+    st.markdown("<h2 class='section-header'>🏢 استكشاف الهيكل الهرمي وتوزيع المساحة (تفاعلي وآمن)</h2>", unsafe_allow_html=True)
+    st.write("انقر فوق أي جزء لاستكشاف المجلدات الفرعية العميقة وتوزيع الحجم.")
+    
+    # Sunburst Chart بالبيانات الحقيقية والمضبوطة (آمنة)
+    fig_sun = px.sunburst(current_data_view, # يعمل على البيانات المفلترة حالياً
+                         path=['top_folder', 'parent_path'], # المسار الهرمي العميق
+                         values='Size (MB)', # الحجم للقياس
+                         color='top_folder', # تلوين حسب الشركة المدمجة
+                         hover_data={'top_folder': True, 'parent_path': True, 'Size (MB)': ':.2f'}) # تفاصيل إضافية عند التمرير
+    
+    fig_sun.update_layout(margin=dict(t=50, l=25, r=25, b=25)) # إعدادات الهامش
+    st.plotly_chart(fig_sun, use_container_width=True) # عرض بدون ميزة Rerun التفاعلية المباشرة لتجنب APIError
+    
+    st.markdown("---")
+
+    # --- 4. تحليل تفصيلي لمحتويات الملفات ونسبها (Pivot Analysis & Percentages) ---
+    st.markdown("<h2 class='section-header'>📄 تحليل محتويات وأنواع الملفات والحجوم والنسب مئوية</h2>", unsafe_allow_html=True)
+    
+    # تجميع البيانات وحساب النسب بدقة (يعمل على البيانات المفلترة حالياً)
+    ext_analysis_df = current_data_view.groupby('extension').agg(
+        total_size_mb=('Size (MB)', 'sum'),
+        file_count=('name', 'count')
+    ).reset_index()
+    
+    # حساب النسب مئوية للحجم الإجمالي الحقيقي (مع التأكد من القسمة على صفر)
+    total_mb_for_percentage = current_data_view['Size (MB)'].sum()
+    if total_mb_for_percentage > 0:
+        ext_analysis_df['percentage'] = (ext_analysis_df['total_size_mb'] / total_mb_for_percentage) * 100
+    else:
+        ext_analysis_df['percentage'] = 0
+        
+    ext_analysis_df.columns = ['نوع الملف', 'إجمالي الحجم (MB)', 'عدد الملفات', 'النسبة مئوية (%)']
+    ext_analysis_df = ext_analysis_df.sort_values(by='إجمالي الحجم (MB)', ascending=False)
+    
+    # تنسيق الجدول للعرض بشكل احترافي (محسن)
+    ext_formatted_view = ext_analysis_df.copy()
+    ext_formatted_view['إجمالي الحجم (MB)'] = ext_formatted_view['إجمالي الحجم (MB)'].map('{:,.2f}'.format)
+    ext_formatted_view['عدد الملفات'] = ext_formatted_view['عدد الملفات'].map('{:,}'.format)
+    ext_formatted_view['النسبة مئوية (%)'] = ext_formatted_view['النسبة مئوية (%)'].map('{:.1f}%'.format)
+    
+    # عرض الجدول التحليلي المتقدم
+    st.markdown("#### جدول تحليلي لمحتويات وأنواع الملفات وحجومها ونسبها الحقيقية:")
+    st.dataframe(ext_formatted_view, use_container_width=True, height=400)
+    
+    chart_col1, chart_col2 = st.columns(2)
+    with chart_col1:
+        # رسم بياني دائري (Pie Chart) للنسب مئوية للحجم الحقيقي لأكبر 8 أنواع
+        st.markdown("#### رسم بياني دائري: توزيع النسب مئوية للحجم حسب النوع الحقيقي:")
+        fig_pie_chart = px.pie(ext_analysis_df.head(8), names='نوع الملف', values='إجمالي الحجم (MB)', hole=0.4, title='أكبر 8 أنواع ملفات حجماً (نسب مئوية حقيقية)')
+        st.plotly_chart(fig_pie_chart, use_container_width=True)
+    with chart_col2:
+        # رسم بياني شريطي (Bar Chart) لعدد الملفات الحقيقي لأكبر 10 أنواع
+        st.markdown("#### رسم بياني شريطي: عدد الملفات لكل نوع حقيقي (أكبر 10):")
+        fig_bar_count_chart = px.bar(ext_analysis_df.head(10), x='نوع الملف', y='عدد الملفات', title='أكبر 10 أنواع من حيث عدد الملفات الحقيقي', labels={'عدد الملفات': 'عدد الملفات الحقيقي'})
+        st.plotly_chart(fig_bar_count_chart, use_container_width=True)
+
+    st.markdown("---")
+
+    # --- 5. خانات تحميل البيانات الكاملة بتنسيق Excel فقط (محسن ومضمون) ---
+    st.markdown("<h2 class='section-header'>📥 تحميل تقارير البيانات الكاملة والحقيقية (Excel)</h2>", unsafe_allow_html=True)
+    st.write("احصل على ملف Excel يحتوي على كافة الصفوف الـ 10,000 الحقيقية والتفاصيل الكاملة.")
+    
+    # إنشاء ملف Excel الآمن خارج الدالة لضمان توفر البيانات
+    excel_full_data_report_final = to_excel_safe(main_df)
+    
+    # زر التحميل الوحيد والمضمون للتشغيل (Excel)
+    st.download_button(
+        label="📥 تحميل ملف Excel الكامل والحقيقي لـ 10K ملف",
+        data=excel_full_data_report_final,
+        # اسم الملف يتغير ديناميكياً بناءً على الفلتر الحالي (محسن)
+        file_name=f'dropbox_data_10k_full_report_{selected_filter_val[:15].strip()}.xlsx',
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+st.markdown("---")
+st.caption("تم إنشاء هذه اللوحة الاحترافية المطور جداً ببياناتك الفعلية من ملف 'خريطة ملفات الدروبكس.csv' باستخدام Streamlit, Pandas, & Plotly.")
