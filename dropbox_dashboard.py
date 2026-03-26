@@ -207,7 +207,7 @@ else:
     # --- 2. إدارة الـ KPIs الديناميكية بناءً على الفلتر ---
     # لقد تم تعديل هذه الدالة لتتوافق مع الـ 12 مؤشر الجديد
     if selected_filter_val == "(عرض كامل الـ 10,000 ملف الحقيقيين)":
-        render_kpis(main_df, len(main_df), "للكل الحقيقيين - تم دمج 'جدير'")
+        render_kpis(main_df, len(main_df), "للكل الحقيقيين ")
         current_data_view = main_df.copy()
     elif selected_filter_val in main_df['top_folder'].unique():
         # النقر على الشركة الرئيسية المدمجة
