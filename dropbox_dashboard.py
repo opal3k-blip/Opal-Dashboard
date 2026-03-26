@@ -176,7 +176,7 @@ if not df.empty:
 
     # --- إدارة الـ KPIs الديناميكية (تفاعلية حقيقية ومستقرة) ---
     if selected_filter == "(عرض كامل الـ 10K ملف)":
-        render_kpis(df, len(df), "للكل - تم دمج 'جدير'")
+        render_kpis(df, len(df), "للكل ")
         current_data = df.copy()
     elif selected_filter in df['top_folder'].unique():
         # النقر على الشركة الرئيسية المدمجة
