@@ -146,4 +146,4 @@ if not df.empty:
     selected_points = sunburst_event.get("selection", {}).get("points", [])
     
     if selected_points:
-        # استخراج المسار
+# استخراج المسار الذي تم النقر عليه (مثلاً ["Jadeer"])
