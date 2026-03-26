@@ -5,7 +5,7 @@ import os
 import io
 
 # --- إعدادات الصفحة ---
-st.set_page_config(page_title="Dropbox 10K Dynamic Dashboard", layout="wide")
+st.set_page_config(page_title="Dropbox 10K Dynamic Dashboard - الإصلاح", layout="wide")
 
 # --- تنسيق مخصص (CSS) لتحسين المظهر ---
 st.markdown("""
@@ -53,11 +53,11 @@ def load_data():
     
     # التأكد من وجود الملف في نفس مجلد الكود
     if not os.path.exists(data_file):
-        st.error(f"⚠️ لم يتم العثور على ملف البيانات: '{data_file}'. تأكد من وضعه في نفس مجلد الكود وأن اسمه صحيح تماماً.")
+        st.error(f"⚠️ لم يتم العثور على ملف البيانات: '{data_file}'. تأكد من وضعه في نفس مجلد الكود.")
         return pd.DataFrame()
 
     try:
-        # قراءة الملف، مع التأكد من ترميز utf-8 لقراءة الحروف العربية
+        # قراءة الملف، مع التأكد من ترميز utf-8 للقراءة الحروف العربية
         df = pd.read_csv(data_file, encoding='utf-8') 
         
         # تنظيف البيانات الأساسي: إزالة الصفوف الفارغة بالكامل
@@ -91,12 +91,20 @@ def render_kpis(filtered_df, total_files, title_prefix="للكل"):
     filtered_df['top_folder'] = filtered_df['parent_path'].apply(lambda x: x.split('/')[0])
     top_company = filtered_df.groupby('top_folder')['Size (MB)'].sum().idxmax()
     top_company_size_mb = filtered_df.groupby('top_folder')['Size (MB)'].sum().max()
-    top_company_perc = (top_company_size_mb / filtered_df['Size (MB)'].sum()) * 100
+    # لتجنب خطأ القسمة على صفر إذا كانت البيانات فارغة
+    total_mb_all = filtered_df['Size (MB)'].sum()
+    if total_mb_all > 0:
+        top_company_perc = (top_company_size_mb / total_mb_all) * 100
+    else:
+        top_company_perc = 0
     
     # النوع الأكثر شيوعاً (حجماً)
     top_ext_size = filtered_df.groupby('extension')['Size (MB)'].sum().idxmax()
     top_ext_size_mb = filtered_df.groupby('extension')['Size (MB)'].sum().max()
-    top_ext_perc = (top_ext_size_mb / filtered_df['Size (MB)'].sum()) * 100
+    if total_mb_all > 0:
+        top_ext_perc = (top_ext_size_mb / total_mb_all) * 100
+    else:
+        top_ext_perc = 0
     
     # حساب أكثر المجلدات عمقاً
     filtered_df['path_depth'] = filtered_df['parent_path'].apply(lambda x: len(x.split('/')))
@@ -130,15 +138,24 @@ df = load_data()
 # --- التحقق من وجود البيانات ---
 if not df.empty:
     
-    # --- 1. التحليل الهرمي العميق (Sunburst Chart) ---
-    st.markdown("<h2 class='section-header'>🏢 استكشاف الهيكل الهرمي وتوزيع المساحة (تفاعلي)</h2>", unsafe_allow_html=True)
+    # --- 1. التحليل الهرمي العميق (Sunburst Chart) - الإصلاح ---
+    st.markdown("<h2 class='section-header'>🏢 استكشاف الهيكل الهرمي وتوزيع المساحة (تفاعلي - تم الإصلاح)</h2>", unsafe_allow_html=True)
     st.write("انقر فوق أي جزء لاستكشاف المجلدات الفرعية العميقة وتحديث المؤشرات.")
     
-    # Sunburst Chart: الشركة -> المسار الهرمي العميق -> الملفات
-    fig_sun = px.sunburst(df, 
+    # أولاً: تجميع البيانات يدوياً لضمان اتساق مخطط Sunburst
+    # نقوم بتجميع كافة الملفات حسب parent_path وحساب إجمالي حجمها
+    folder_agg_df = df.groupby('parent_path')['Size (MB)'].sum().reset_index()
+    
+    # ثانياً: استخراج المجلدات الرئيسية والثانوية لبناء الهيكل الهرمي في مخطط Sunburst
+    # نحتاج لعمود 'top_folder' (الشركة رئيسية) و عمود 'full_path' (المسار الكامل)
+    folder_agg_df['top_folder'] = folder_agg_df['parent_path'].apply(lambda x: x.split('/')[0])
+    
+    # ثالثاً: رسم مخطط Sunburst بالبيانات المجمعة المتسقة
+    fig_sun = px.sunburst(folder_agg_df, 
                          path=['top_folder', 'parent_path'], # المسار الهرمي
-                         values='Size (MB)', # الحجم للقياس
+                         values='Size (MB)', # الحجم المجمع للقياس
                          color='top_folder', # تلوين حسب الشركة
+                         title='انقر فوق أي جزء لاستكشاف المجلدات الفرعية العميقة وتوزيع الحجم',
                          hover_data={'top_folder': True, 'parent_path': True, 'Size (MB)': ':.2f'}) # تفاصيل إضافية عند التمرير
     
     fig_sun.update_layout(margin=dict(t=50, l=25, r=25, b=25)) # إعدادات الهامش
@@ -159,9 +176,12 @@ if not df.empty:
         
         # فلترة البيانات بناءً على المسار
         if len(clicked_path) == 1:
+            # النقر على الشركة الرئيسية
+            df['top_folder'] = df['parent_path'].apply(lambda x: x.split('/')[0])
             filtered_df = df[df['top_folder'] == clicked_path[0]].copy()
             render_kpis(filtered_df, len(df), f"لشركة: {clicked_path[0]}")
         else:
+             # النقر على مجلد فرعي عميق
              full_path_str = clicked_path_str # مثل "Jadeer/مشاريع"
              filtered_df = df[df['parent_path'].str.startswith(full_path_str)].copy()
              render_kpis(filtered_df, len(df), f"للمجلد: {full_path_str}")
@@ -181,31 +201,33 @@ if not df.empty:
         file_count=('name', 'count')
     ).reset_index()
     
-    # حساب النسب مئوية للحجم
-    ext_analysis_df['percentage'] = (ext_analysis_df['total_size_mb'] / df['Size (MB)'].sum()) * 100
+    # حساب النسب مئوية للحجم (مع التأكد من القسمة على صفر)
+    total_size_mb_all = df['Size (MB)'].sum()
+    if total_size_mb_all > 0:
+        ext_analysis_df['percentage'] = (ext_analysis_df['total_size_mb'] / total_size_mb_all) * 100
+    else:
+        ext_analysis_df['percentage'] = 0
+        
     ext_analysis_df.columns = ['نوع الملف', 'إجمالي الحجم (MB)', 'عدد الملفات', 'النسبة مئوية (%)']
     
     # ترتيب من الأكبر حجماً للأصغر
     ext_analysis_df = ext_analysis_df.sort_values(by='إجمالي الحجم (MB)', ascending=False)
     
-    # تنسيق الجدول لعرض النسب مئوية بشكل جميل
+    # تنسيق الجدول للعرض
     ext_analysis_df_formatted = ext_analysis_df.copy()
     ext_analysis_df_formatted['إجمالي الحجم (MB)'] = ext_analysis_df_formatted['إجمالي الحجم (MB)'].map('{:,.2f}'.format)
     ext_analysis_df_formatted['عدد الملفات'] = ext_analysis_df_formatted['عدد الملفات'].map('{:,}'.format)
     ext_analysis_df_formatted['النسبة مئوية (%)'] = ext_analysis_df_formatted['النسبة مئوية (%)'].map('{:.1f}%'.format)
     
-    # عرض الجدول التحليلي المتقدم
     st.markdown("#### جدول تحليلي لمحتويات وأنواع الملفات ونسبها:")
     st.dataframe(ext_analysis_df_formatted, use_container_width=True, height=400)
     
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
-        # رسم بياني دائري (Pie Chart) للنسب مئوية للحجم
         st.markdown("#### رسم بياني دائري: توزيع النسب مئوية للحجم حسب النوع:")
         fig_pie = px.pie(ext_analysis_df.head(8), names='نوع الملف', values='إجمالي الحجم (MB)', hole=0.4, title='أكبر 8 أنواع ملفات (نسب مئوية)')
         st.plotly_chart(fig_pie, use_container_width=True)
     with chart_col2:
-        # رسم بياني شريطي (Bar Chart) لعدد الملفات
         st.markdown("#### رسم بياني شريطي: عدد الملفات لكل نوع (أكبر 10):")
         fig_bar_count = px.bar(ext_analysis_df.head(10), x='نوع الملف', y='عدد الملفات', title='أكبر 10 أنواع من حيث عدد الملفات', labels={'عدد الملفات': 'عدد الملفات'})
         st.plotly_chart(fig_bar_count, use_container_width=True)
@@ -215,7 +237,6 @@ if not df.empty:
     # --- 4. خانات تحميل البيانات (Excel Download) ---
     st.markdown("<h2 class='section-header'>📥 تحميل تقارير البيانات (Excel)</h2>", unsafe_allow_html=True)
     st.write("احصل على ملف Excel يحتوي على كافة الصفوف الـ 10,000 والتفاصيل الكاملة.")
-    
     excel_data = to_excel(df)
     st.download_button(label="📥 تحميل ملف Excel", data=excel_data, file_name='dropbox_data_10k.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
