@@ -178,4 +178,24 @@ if not df.empty:
     with chart_col1:
         st.markdown("#### رسم بياني دائري: توزيع إجمالي الحجم حسب النوع:")
         fig_pie = px.pie(ext_analysis_df.head(8), names='نوع الملف', values='إجمالي الحجم (MB)', hole=0.4, title='أكبر 8 أنواع ملفات حجماً (MB)')
-        st.plotly_chart(fig_pie, use_container_width=
+        st.plotly_chart(fig_pie, use_container_width=True)
+    with chart_col2:
+        st.markdown("#### رسم بياني شريطي: عدد الملفات لكل نوع (أكبر 10):")
+        fig_bar_count = px.bar(ext_analysis_df.head(10), x='نوع الملف', y='عدد الملفات', title='أكبر 10 أنواع من حيث عدد الملفات', labels={'عدد الملفات': 'عدد الملفات'})
+        st.plotly_chart(fig_bar_count, use_container_width=True)
+
+    st.markdown("---")
+
+    # --- 4. خانات تحميل البيانات (Excel Download) ---
+    st.markdown("<h2 class='section-header'>📥 تحميل تقارير البيانات (Excel)</h2>", unsafe_allow_html=True)
+    st.write("احصل على ملف Excel يحتوي على كافة الصفوف الـ 10,000 والتفاصيل الكاملة.")
+    
+    excel_data = to_excel(df)
+    st.download_button(label="📥 تحميل ملف Excel", data=excel_data, file_name='dropbox_data_10k.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+else:
+    # سيتم عرض رسالة الخطأ من دالة load_data()
+    pass
+
+st.markdown("---")
+st.caption("تم إنشاء هذه اللوحة الاحترافية ببياناتك الفعلية من ملف 'خريطة ملفات الدروبكس.csv' باستخدام Streamlit, Pandas, & Plotly.")
