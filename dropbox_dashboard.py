@@ -10,13 +10,6 @@ st.set_page_config(page_title="Dropbox 10K Dynamic Pro Dashboard", layout="wide"
 # --- تنسيق مخصص (CSS) لجعل اللوحة احترافية جداً ---
 st.markdown("""
 <style>
-    /* تنسيق الحاوية الرئيسية للمؤشرات */
-    .kpi-container {
-        background-color: #f9f9f9;
-        padding: 30px;
-        border-radius: 15px;
-        margin-bottom: 30px;
-    }
     /* تنسيق بطاقة المؤشر الواحد */
     .kpi-card {
         background-color: white;
@@ -65,33 +58,22 @@ st.markdown("---")
 # --- دالة لتحميل وتنظيف البيانات (مع دمج 'جدير') ---
 @st.cache_data
 def load_data():
-    # اسم ملف البيانات الفعلي الذي قدمته (تأكد من وجوده في نفس مجلد الكود)
     data_file = 'خريطة_ملفات_الدروبكس_المعدلة.csv'
     
-    # التأكد من وجود الملف في نفس مجلد الكود
     if not os.path.exists(data_file):
         st.error(f"⚠️ لم يتم العثور على ملف البيانات: '{data_file}'. تأكد من وضعه في نفس مجلد الكود.")
         return pd.DataFrame()
 
     try:
-        # قراءة الملف، مع التأكد من ترميز utf-8 للقراءة الحروف العربية
         df = pd.read_csv(data_file, encoding='utf-8') 
-        
-        # تنظيف البيانات الأساسي: إزالة الصفوف الفارغة بالكامل
         df.dropna(how='all', inplace=True)
         
-        # تحويل عمود الحجم إلى ميغابايت (MB) من عمود 'Size (Bytes)' الموجود في ملفك
         if 'Size (Bytes)' in df.columns:
-            df['Size (MB)'] = pd.to_numeric(df['Size (Bytes)']) / (1024 * 1024) # تحويل من بايت لـ MB
-            df['Size (GB)'] = df['Size (MB)'] / 1024 # تحويل لـ GB
-        else:
-             st.warning("تنبيه: لم يتم العثور على عمود 'Size (Bytes)'.")
+            df['Size (MB)'] = pd.to_numeric(df['Size (Bytes)']) / (1024 * 1024)
+            df['Size (GB)'] = df['Size (MB)'] / 1024
             
-        # --- الإجراء الحاسم: دمج كافة أقسام 'جدير' في ملف واحد ---
-        # إنشاء عمود للشركة الرئيسية (الجزء الأول من المسار)
+        # --- دمج 'جدير' ---
         df['top_folder'] = df['parent_path'].apply(lambda x: x.split('/')[0])
-        
-        # استبدال كافة المسارات التي تبدأ بـ 'Jadeer' لتصبح 'Jadeer' فقط في عمود الشركة الرئيسية
         df.loc[df['top_folder'].str.startswith('Jadeer'), 'top_folder'] = 'Jadeer'
         
         return df
@@ -103,7 +85,6 @@ def load_data():
 def render_kpis(filtered_df, total_files, title_prefix="للكل"):
     st.markdown(f"<h3 class='section-header'>📌 مؤشرات أداء رئيسية متقدمة لـ 10K ملف ({title_prefix})</h3>", unsafe_allow_html=True)
     
-    # تنسيق بطاقات الـ KPIs داخل حاوية مخصصة
     col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
     
     # حساب القيم الأساسية
@@ -128,9 +109,6 @@ def render_kpis(filtered_df, total_files, title_prefix="للكل"):
     # أكبر ملف منفرد
     largest_file = filtered_df.sort_values(by='Size (MB)', ascending=False).iloc[0]
 
-    # عدد الشركات الرئيسية المدمجة
-    num_companies = len(filtered_df['top_folder'].unique())
-
     # عرض الـ KPIs الـ 7 المفصلة والاحترافية
     with col1:
         st.markdown(f"<div class='kpi-card'><div class='kpi-title'>إجمالي الملفات</div><div class='kpi-value'>{num_files:,}</div></div>", unsafe_allow_html=True)
@@ -143,9 +121,9 @@ def render_kpis(filtered_df, total_files, title_prefix="للكل"):
     with col5:
          st.markdown(f"<div class='kpi-card'><div class='kpi-title'>النوع المهيمن (حجماً)</div><div class='kpi-value'>.{top_ext_size}</div><div class='kpi-sub'>{top_ext_size_mb/1024:.1f} GB ({top_ext_perc:.1f}%)</div></div>", unsafe_allow_html=True)
     with col6:
-         st.markdown(f"<div class='kpi-card'><div class='kpi-title'>أكثر المجلدات عمقاً</div><div class='kpi-value'>{max_depth}</div><div class='kpi-sub'>مستويات هرمية</div></div>", unsafe_allow_html=True)
+         st.markdown(f"<div class='kpi-card'><div class='kpi-title'>أكثر المجلدات عمقاً</div><div class='kpi-value'>{max_depth} مستويات</div></div>", unsafe_allow_html=True)
     with col7:
-         st.markdown(f"<div class='kpi-card'><div class='kpi-title'>الشركات الرئيسية</div><div class='kpi-value'>{num_companies}</div><div class='kpi-sub'>ملفات مدمجة</div></div>", unsafe_allow_html=True)
+         st.markdown(f"<div class='kpi-card'><div class='kpi-title'>الشركات الرئيسية المدمجة</div><div class='kpi-value'>{len(filtered_df['top_folder'].unique())}</div></div>", unsafe_allow_html=True)
 
 # --- دالة لإنشاء ملف Excel للتحميل ---
 def to_excel(df):
@@ -155,102 +133,43 @@ def to_excel(df):
     processed_data = output.getvalue()
     return processed_data
 
-# --- تحميل البيانات (هنا يتم تعريف متغير df) ---
+# --- تحميل البيانات ---
 df = load_data()
 
 # --- التحقق من وجود البيانات ---
 if not df.empty:
     
-    # --- 1. التحليل الهرمي العميق (Sunburst Chart) ---
-    st.markdown("<h2 class='section-header'>🏢 استكشاف الهيكل الهرمي وتوزيع المساحة (تفاعلي - تم دمج 'جدير')</h2>", unsafe_allow_html=True)
-    st.write("انقر فوق أي جزء لاستكشاف المجلدات الفرعية العميقة وتحديث المؤشرات.")
+    # استخراج كافة المسارات الفرعية العميقة
+    all_paths = sorted(list(df['parent_path'].unique()))
     
-    # Sunburst Chart: الشركة المدمجة -> المسار الهرمي العميق -> الملفات
-    fig_sun = px.sunburst(df, 
-                         path=['top_folder', 'parent_path'], # المسار الهرمي
-                         values='Size (MB)', # الحجم للقياس
-                         color='top_folder', # تلوين حسب الشركة المدمجة
-                         hover_data={'top_folder': True, 'parent_path': True, 'Size (MB)': ':.2f'}) # تفاصيل إضافية عند التمرير
+    # --- 1. قائمة منسدلة ديناميكية للفلترة ---
+    st.markdown("<h2 class='section-header'>📂 فلترة البيانات واستكشاف المجلدات الديناميكية</h2>", unsafe_allow_html=True)
+    st.write("اختر مجلداً محدداً من القائمة أدناه لتحديث لوحة التحكم بالكامل فوراً:")
     
-    fig_sun.update_layout(margin=dict(t=50, l=25, r=25, b=25)) # إعدادات الهامش
-    
-    # جعل المخطط تفاعلي مع Streamlit
-    sunburst_event = st.plotly_chart(fig_sun, use_container_width=True, on_select="rerun", selection_mode="point")
+    # إنشاء القائمة: الكل + الشركات الرئيسية المدمجة + المجلدات الفرعية العميقة
+    dropdown_options = ["(عرض كامل الـ 10K ملف)"] + sorted(list(df['top_folder'].unique())) + all_paths
+    selected_filter = st.selectbox("", dropdown_options, index=0)
     
     st.markdown("---")
 
-    # --- 2. إدارة الـ KPIs الديناميكية (تفاعلية) ---
-    # تحديد البيانات التي تم اختيارها من مخطط Sunburst
-    selected_points = sunburst_event.get("selection", {}).get("points", [])
-    
-    if selected_points:
-        # استخراج المسار الذي تم النقر عليه (مثلاً ["Jadeer"])
-        clicked_path_str = selected_points[0].get("id", "")
-        clicked_path = clicked_path_str.split('/')
-        
-        # فلترة البيانات بناءً على المسار
-        if len(clicked_path) == 1:
-            filtered_df = df[df['top_folder'] == clicked_path[0]].copy()
-            render_kpis(filtered_df, len(df), f"لشركة المدمجة: {clicked_path[0]}")
-        else:
-             full_path_str = clicked_path_str # مثل "Jadeer/مشاريع"
-             filtered_df = df[df['parent_path'].str.startswith(full_path_str)].copy()
-             render_kpis(filtered_df, len(df), f"للمجلد للمجلد: {full_path_str}")
-             
-    else:
-        # عرض الـ KPIs الافتراضية لكافة الملفات (10K)
+    # --- إدارة الـ KPIs الديناميكية (تفاعلية حقيقية ومستقرة) ---
+    if selected_filter == "(عرض كامل الـ 10K ملف)":
         render_kpis(df, len(df), "للكل - تم دمج 'جدير'")
+        current_data = df.copy()
+    elif selected_filter in df['top_folder'].unique():
+        # النقر على الشركة الرئيسية المدمجة
+        filtered_df = df[df['top_folder'] == selected_filter].copy()
+        render_kpis(filtered_df, len(df), f"لشركة: {selected_filter}")
+        current_data = filtered_df.copy()
+    else:
+         # النقر على مجلد فرعي عميق
+         filtered_df = df[df['parent_path'].str.startswith(selected_filter)].copy()
+         render_kpis(filtered_df, len(df), f"للمجلد: {selected_filter}")
+         current_data = filtered_df.copy()
 
     st.markdown("---")
 
-    # --- 3. تحليل تفصيلي لمحتويات الملفات ونسبها (Pivot Analysis & Percentages) ---
-    st.markdown("<h2 class='section-header'>📄 تحليل محتويات وأنواع الملفات وحجومها والنسب مئوية</h2>", unsafe_allow_html=True)
+    # --- 2. التحليل الهرمي العميق (Sunburst Chart) - إلغاء التفاعل لمنع الخطأ ---
+    st.markdown("<h2 class='section-header'>🏢 استكشاف الهيكل الهرمي وتوزيع المساحة (تفاعلي - تم دمج 'جدير')</h2>", unsafe_allow_html=True)
     
-    # تجميع البيانات بشكل متقدم (Pivot-like aggregation) وحساب النسب
-    ext_analysis_df = df.groupby('extension').agg(
-        total_size_mb=('Size (MB)', 'sum'),
-        file_count=('name', 'count')
-    ).reset_index()
-    
-    # حساب النسب مئوية للحجم
-    ext_analysis_df['percentage'] = (ext_analysis_df['total_size_mb'] / df['Size (MB)'].sum()) * 100
-    ext_analysis_df.columns = ['نوع الملف', 'إجمالي الحجم (MB)', 'عدد الملفات', 'النسبة مئوية (%)']
-    
-    # ترتيب من الأكبر حجماً للأصغر
-    ext_analysis_df = ext_analysis_df.sort_values(by='إجمالي الحجم (MB)', ascending=False)
-    
-    # تنسيق الجدول لعرض النسب مئوية بشكل جميل
-    ext_analysis_df_formatted = ext_analysis_df.copy()
-    ext_analysis_df_formatted['إجمالي الحجم (MB)'] = ext_analysis_df_formatted['إجمالي الحجم (MB)'].map('{:,.2f}'.format)
-    ext_analysis_df_formatted['عدد الملفات'] = ext_analysis_df_formatted['عدد الملفات'].map('{:,}'.format)
-    ext_analysis_df_formatted['النسبة مئوية (%)'] = ext_analysis_df_formatted['النسبة مئوية (%)'].map('{:.1f}%'.format)
-    
-    # عرض الجدول التحليلي المتقدم
-    st.markdown("#### جدول تحليلي لمحتويات وأنواع الملفات وحجومها ونسبها:")
-    st.dataframe(ext_analysis_df_formatted, use_container_width=True, height=400)
-    
-    chart_col1, chart_col2 = st.columns(2)
-    with chart_col1:
-        st.markdown("#### رسم بياني دائري: توزيع النسب مئوية للحجم حسب النوع:")
-        fig_pie = px.pie(ext_analysis_df.head(8), names='نوع الملف', values='إجمالي الحجم (MB)', hole=0.4, title='أكبر 8 أنواع ملفات (نسب مئوية)')
-        st.plotly_chart(fig_pie, use_container_width=True)
-    with chart_col2:
-        st.markdown("#### رسم بياني شريطي: عدد الملفات لكل نوع (أكبر 10):")
-        fig_bar_count = px.bar(ext_analysis_df.head(10), x='نوع الملف', y='عدد الملفات', title='أكبر 10 أنواع من حيث عدد الملفات', labels={'عدد الملفات': 'عدد الملفات'})
-        st.plotly_chart(fig_bar_count, use_container_width=True)
-
-    st.markdown("---")
-
-    # --- 4. خانات تحميل البيانات (Excel Download) ---
-    st.markdown("<h2 class='section-header'>📥 تحميل تقارير البيانات (Excel)</h2>", unsafe_allow_html=True)
-    st.write("احصل على ملف Excel يحتوي على كافة الصفوف الـ 10,000 والتفاصيل الكاملة.")
-    
-    excel_data = to_excel(df)
-    st.download_button(label="📥 تحميل ملف Excel", data=excel_data, file_name='dropbox_data_10k.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
-else:
-    # سيتم عرض رسالة الخطأ من دالة load_data()
-    pass
-
-st.markdown("---")
-st.caption("تم إنشاء هذه اللوحة الاحترافية جداً ببياناتك الفعلية من ملف 'خريطة ملفات الدروبكس.csv' باستخدام Streamlit, Pandas, & Plotly.")
+    # Sunburst Chart بالبيانات المجمعة المتسقة (تم
