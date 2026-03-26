@@ -290,33 +290,6 @@ else:
 
 st.markdown("---")
 st.caption("تم إنشاء هذه اللوحة الاحترافية ببياناتك الفعلية من ملف 'خريطة ملفات الدروبكس.csv' باستخدام Streamlit, Pandas, & Plotly.")
-# --- الرسم الثامن والأخير (جديد) ---
-    st.markdown("---")
-    st.markdown("### 📄 تحليل مكدس للشركات الكبرى والأصناف")
-    # (8) شريطي مكدس (Stacked Bar): توزيع الأنواع لأكبر 5 شركات عدداً
-    top_5_cos_by_count = current_data['top_folder'].value_counts().head(5).index
-    df_top_cos = current_data[current_data['top_folder'].isin(top_5_cos_by_count)]
-    # التركيز على أكبر 3 امتدادات فقط للوضوح
-    top_exts = ext_df.head(3)['extension'].tolist()
-    df_top_cos_exts = df_top_cos[df_top_cos['extension'].isin(top_exts)]
-    
-    fig_stacked = px.bar(df_top_cos_exts, x='top_folder', y='Size (GB)', color='extension', title='توزيع أكبر 3 أنواع ملفات (حجماً) داخل أكبر 5 شركات عدداً', labels={'Size (GB)': 'الحجم (GB)', 'top_folder': 'الشركة'})
-    st.plotly_chart(fig_stacked, use_container_width=True)
-
-    st.markdown("---")
-
-    # --- 4. خانات تحميل البيانات (Excel Download) ---
-    st.markdown("<h2 class='section-header'>📥 تحميل تقارير البيانات (Excel)</h2>", unsafe_allow_html=True)
-    st.write("احصل على ملف Excel يحتوي على كافة الصفوف الـ 10,000 والتفاصيل الكاملة.")
-    
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='DropboxData')
-    processed_data = output.getvalue()
-    st.download_button(label="📥 تحميل ملف Excel", data=processed_data, file_name='dropbox_data_10k.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-
-else:
-    pass
 
 st.markdown("---")
 st.caption("تم إنشاء هذه اللوحة الاحترافية المطورة ببياناتك الفعلية من ملف 'خريطة ملفات الدروبكس.csv' باستخدام Streamlit, Pandas, & Plotly.")
