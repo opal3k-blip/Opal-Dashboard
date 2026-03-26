@@ -7,7 +7,7 @@ import io
 # --- إعدادات الصفحة ---
 st.set_page_config(page_title="Dropbox 10K Dynamic Pro Dashboard", layout="wide")
 
-# --- تنسيق مخصص (CSS) لجعل اللوحة احترافية جداً ---
+# --- تنسيق مخصص (CSS) لتحسين المظهر وجعل اللوحة احترافية جداً ---
 st.markdown("""
 <style>
     /* تنسيق الحاوية الرئيسية للمؤشرات */
@@ -70,7 +70,7 @@ def load_data():
     
     # التأكد من وجود الملف في نفس مجلد الكود
     if not os.path.exists(data_file):
-        st.error(f"⚠️ لم يتم العثور على ملف البيانات: '{data_file}'. تأكد من وضعه في نفس مجلد الكود.")
+        st.error(f"⚠️ لم يتم العثور على ملف البيانات: '{data_file}'. تأكد من وضعه في نفس مجلد الكود وان اسمه صحيح تماماً.")
         return pd.DataFrame()
 
     try:
@@ -90,19 +90,22 @@ def load_data():
             
         # --- الإجراء الحاسم: دمج كافة أقسام 'جدير' في ملف واحد ---
         # إنشاء عمود للشركة الرئيسية (الجزء الأول من المسار)
-        df['top_folder'] = df['parent_path'].apply(lambda x: x.split('/')[0])
+        df['top_folder'] = df['parent_path'].apply(lambda x: str(x).split('/')[0])
         
         # استبدال كافة المسارات التي تبدأ بـ 'Jadeer' لتصبح 'Jadeer' فقط في عمود الشركة الرئيسية
         df.loc[df['top_folder'].str.startswith('Jadeer'), 'top_folder'] = 'Jadeer'
         
+        # حساب العمق الهرمي
+        df['path_depth'] = df['parent_path'].apply(lambda x: len(str(x).split('/')))
+
         return df
     except Exception as e:
         st.error(f"حدث خطأ أثناء قراءة الملف: {e}")
         return pd.DataFrame()
 
 # --- دالة لإنشاء مؤشرات KPIs احترافية وديناميكية (المطورة بـ 8 مؤشرات) ---
-def render_kpis(filtered_df, total_files, title_prefix="للكل"):
-    st.markdown(f"<h3 class='section-header'>📌 مؤشرات أداء رئيسية متقدمة لـ 10K ملف ({title_prefix})</h3>", unsafe_allow_html=True)
+def render_kpis(filtered_df, title_prefix="للكل"):
+    st.markdown(f"<h3 class='section-header'>📌 مؤشرات أداء رئيسية متقدمة ({title_prefix})</h3>", unsafe_allow_html=True)
     
     # تنسيق بطاقات الـ KPIs داخل صف واحد عريض (8 أعمدة)
     col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
@@ -114,26 +117,17 @@ def render_kpis(filtered_df, total_files, title_prefix="للكل"):
     avg_size_mb = filtered_df['Size (MB)'].mean()
     
     # النوع الأكثر شيوعاً (حجماً)
-    total_mb_all = filtered_df['Size (MB)'].sum()
     top_ext_size = filtered_df.groupby('extension')['Size (MB)'].sum().idxmax()
     top_ext_size_mb = filtered_df.groupby('extension')['Size (MB)'].sum().max()
-    if total_mb_all > 0:
-        top_ext_perc = (top_ext_size_mb / total_mb_all) * 100
-    else:
-        top_ext_perc = 0
     
-    # حساب أكثر المجلدات عمقاً
-    filtered_df['path_depth'] = filtered_df['parent_path'].apply(lambda x: len(x.split('/')))
+    # العمق
     max_depth = filtered_df['path_depth'].max()
 
     # أكبر ملف منفرد
     largest_file = filtered_df.sort_values(by='Size (MB)', ascending=False).iloc[0]
 
-    # عدد الشركات الرئيسية المدمجة
-    unique_companies = filtered_df['top_folder'].unique()
-    num_companies = len(unique_companies)
-
-    # متوسط عدد الملفات لكل شركة
+    # عدد الشركات والملفات لكل شركة
+    num_companies = len(filtered_df['top_folder'].unique())
     avg_files_per_company = num_files / num_companies if num_companies > 0 else 0
 
     # عرض الـ KPIs الـ 8 المفصلة والاحترافية
@@ -146,21 +140,13 @@ def render_kpis(filtered_df, total_files, title_prefix="للكل"):
     with col4:
          st.markdown(f"<div class='kpi-card'><div class='kpi-title'>أكبر ملف منفرد</div><div class='kpi-value'>{largest_file['Size (MB)']:.1f}</div><div class='kpi-sub'>{largest_file['name'][:10]}... MB</div></div>", unsafe_allow_html=True)
     with col5:
-         st.markdown(f"<div class='kpi-card'><div class='kpi-title'>النوع المهيمن (حجماً)</div><div class='kpi-value'>.{top_ext_size}</div><div class='kpi-sub'>{top_ext_size_mb/1024:.1f} GB ({top_ext_perc:.1f}%)</div></div>", unsafe_allow_html=True)
+         st.markdown(f"<div class='kpi-card'><div class='kpi-title'>النوع المهيمن (حجماً)</div><div class='kpi-value'>.{top_ext_size}</div></div>", unsafe_allow_html=True)
     with col6:
          st.markdown(f"<div class='kpi-card'><div class='kpi-title'>أكثر المجلدات عمقاً</div><div class='kpi-value'>{max_depth} levels</div></div>", unsafe_allow_html=True)
     with col7:
-         st.markdown(f"<div class='kpi-card'><div class='kpi-title'>الشركات الرئيسية المدمجة</div><div class='kpi-value'>{num_companies}</div></div>", unsafe_allow_html=True)
+         st.markdown(f"<div class='kpi-card'><div class='kpi-title'>الشركات المدمجة</div><div class='kpi-value'>{num_companies}</div></div>", unsafe_allow_html=True)
     with col8:
          st.markdown(f"<div class='kpi-card'><div class='kpi-title'>متوسط الملفات/شركة</div><div class='kpi-value'>{avg_files_per_company:.1f}</div></div>", unsafe_allow_html=True)
-
-# --- دالة لإنشاء ملف Excel للتحميل ---
-def to_excel(df):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='DropboxData')
-    processed_data = output.getvalue()
-    return processed_data
 
 # --- تحميل البيانات (هنا يتم تعريف متغير df) ---
 df = load_data()
@@ -174,8 +160,6 @@ if not df.empty:
     # --- 1. قائمة منسدلة ديناميكية للفلترة ---
     st.markdown("<h2 class='section-header'>📂 فلترة البيانات واستكشاف المجلدات الديناميكية</h2>", unsafe_allow_html=True)
     st.write("اختر مجلداً محدداً من القائمة أدناه لتحديث لوحة التحكم بالكامل فوراً:")
-    
-    # إنشاء القائمة: الكل + الشركات الرئيسية المدمجة + المجلدات الفرعية العميقة
     dropdown_options = ["(عرض كامل الـ 10K ملف)"] + sorted(list(df['top_folder'].unique())) + all_paths
     selected_filter = st.selectbox("", dropdown_options, index=0)
     
@@ -183,79 +167,89 @@ if not df.empty:
 
     # --- إدارة الـ KPIs الديناميكية (تفاعلية حقيقية ومستقرة) ---
     if selected_filter == "(عرض كامل الـ 10K ملف)":
-        render_kpis(df, len(df), "للكل - تم دمج 'جدير'")
+        render_kpis(df, "للكل - تم دمج 'جدير'")
         current_data = df.copy()
     elif selected_filter in df['top_folder'].unique():
-        # النقر على الشركة الرئيسية المدمجة
         filtered_df = df[df['top_folder'] == selected_filter].copy()
-        render_kpis(filtered_df, len(df), f"لشركة: {selected_filter}")
+        render_kpis(filtered_df, f"لشركة: {selected_filter}")
         current_data = filtered_df.copy()
     else:
-         # النقر على مجلد فرعي عميق
          filtered_df = df[df['parent_path'].str.startswith(selected_filter)].copy()
-         render_kpis(filtered_df, len(df), f"للمجلد: {selected_filter}")
+         render_kpis(filtered_df, f"للمجلد: {selected_filter}")
          current_data = filtered_df.copy()
 
     st.markdown("---")
 
-    # --- 2. التحليل الهرمي العميق (Sunburst Chart) - إلغاء التفاعل لمنع الخطأ ---
-    st.markdown("<h2 class='section-header'>🏢 استكشاف الهيكل الهرمي وتوزيع المساحة (تفاعلي - تم دمج 'جدير')</h2>", unsafe_allow_html=True)
-    st.write("انقر فوق أي جزء لاستكشاف المجلدات الفرعية العميقة وتوزيع الحجم.")
+    # --- 2. الرسم البياني الأول: مخطط Sunburst (الهيكل الهرمي) ---
+    # هذا هو الرسم الأول من الثمانية
+    st.markdown("<h2 class='section-header'>🏢 (1) استكشاف الهيكل الهرمي وتوزيع المساحة (تفاعلي)</h2>", unsafe_allow_html=True)
     
-    # Sunburst Chart بالبيانات المجمعة المتسقة (تم إلغاء on_select لتجنب APIError)
-    fig_sun = px.sunburst(current_data, # يعمل على البيانات المفلترة حالياً
-                         path=['top_folder', 'parent_path'], # المسار الهرمي
-                         values='Size (MB)', # الحجم للقياس
-                         color='top_folder', # تلوين حسب الشركة المدمجة
-                         hover_data={'top_folder': True, 'parent_path': True, 'Size (MB)': ':.2f'}) # تفاصيل إضافية عند التمرير
-    
-    fig_sun.update_layout(margin=dict(t=50, l=25, r=25, b=25)) # إعدادات الهامش
-    st.plotly_chart(fig_sun, use_container_width=True) # عرض بدون ميزة Rerun التفاعلية المباشرة
+    fig_sun = px.sunburst(current_data, path=['top_folder', 'parent_path'], values='Size (MB)', color='top_folder', hover_data={'Size (MB)': ':.2f'})
+    fig_sun.update_layout(margin=dict(t=50, l=25, r=25, b=25))
+    st.plotly_chart(fig_sun, use_container_width=True)
     
     st.markdown("---")
 
-    # --- 3. تحليل تفصيلي لمحتويات الملفات ونسبها (Pivot Analysis & Percentages) ---
-    st.markdown("<h2 class='section-header'>📄 تحليل محتويات وأنواع الملفات وحجومها والنسب مئوية</h2>", unsafe_allow_html=True)
+    # --- 3. قسم التحليل التفصيلي وإضافة المزيد من الرسومات (الآن المجموع 8) ---
+    st.markdown("<h2 class='section-header'>📄 تحليل متقدم لـ 10K ملف (المجموع 8 رسومات بيانية)</h2>", unsafe_allow_html=True)
     
-    # تجميع البيانات وحساب النسب (يعمل على البيانات المفلترة حالياً)
-    ext_df = current_data.groupby('extension').agg(
-        total_size_mb=('Size (MB)', 'sum'),
-        file_count=('name', 'count')
-    ).reset_index()
+    # تجميع البيانات للرسومات القادمة
+    ext_df = current_data.groupby('extension').agg(total_size_mb=('Size (MB)', 'sum'), file_count=('name', 'count')).reset_index()
     
-    # حساب النسب مئوية للحجم (مع التأكد من القسمة على صفر)
-    total_size_mb_all_for_filter = current_data['Size (MB)'].sum()
-    if total_size_mb_all_for_filter > 0:
-        ext_df['percentage'] = (ext_df['total_size_mb'] / total_size_mb_all_for_filter) * 100
-    else:
-        ext_df['percentage'] = 0
-        
-    ext_df.columns = ['نوع الملف', 'إجمالي الحجم (MB)', 'عدد الملفات', 'النسبة مئوية (%)']
-    
-    # ترتيب من الأكبر حجماً للأصغر
-    ext_df = ext_df.sort_values(by='إجمالي الحجم (MB)', ascending=False)
-    
-    # تنسيق الجدول للعرض
-    ext_formatted = ext_df.copy()
-    ext_formatted['إجمالي الحجم (MB)'] = ext_formatted['إجمالي الحجم (MB)'].map('{:,.2f}'.format)
-    ext_formatted['عدد الملفات'] = ext_formatted['عدد الملفات'].map('{:,}'.format)
-    ext_formatted['النسبة مئوية (%)'] = ext_formatted['النسبة مئوية (%)'].map('{:.1f}%'.format)
-    
-    # عرض الجدول التحليلي المتقدم
-    st.markdown("#### جدول تحليلي لمحتويات وأنواع الملفات وحجومها ونسبها:")
-    st.dataframe(ext_formatted, use_container_width=True, height=400)
-    
+    # --- صف الرسومات الأول (الرسومات 2 و 3 القديمة) ---
+    st.markdown("### 📊 توزيع الحجم والعدد حسب نوع الملف")
     chart_col1, chart_col2 = st.columns(2)
     with chart_col1:
-        # رسم بياني دائري (Pie Chart) للنسب مئوية للحجم
-        st.markdown("#### رسم بياني دائري: توزيع النسب مئوية للحجم حسب النوع:")
-        fig_pie = px.pie(ext_df.head(8), names='نوع الملف', values='إجمالي الحجم (MB)', hole=0.4, title='أكبر 8 أنواع ملفات (نسب مئوية)')
+        # (2) رسم بياني دائري (الحجم MB)
+        fig_pie = px.pie(ext_df.head(8), names='نوع الملف', values='إجمالي الحجم (MB)', hole=0.4, title='توزيع حجم المساحة (MB) لأكبر 8 أنواع')
         st.plotly_chart(fig_pie, use_container_width=True)
     with chart_col2:
-        # رسم بياني شريطي (Bar Chart) لعدد الملفات
-        st.markdown("#### رسم بياني شريطي: عدد الملفات لكل نوع (أكبر 10):")
-        fig_bar_count = px.bar(ext_df.head(10), x='نوع الملف', y='عدد الملفات', title='أكبر 10 أنواع من حيث عدد الملفات', labels={'عدد الملفات': 'عدد الملفات'})
+        # (3) رسم بياني شريطي (عدد الملفات)
+        fig_bar_count = px.bar(ext_df.head(10), x='نوع الملف', y='عدد الملفات', title='أكبر 10 أنواع ملفات من حيث العدد')
         st.plotly_chart(fig_bar_count, use_container_width=True)
+
+    # --- صف الرسومات الثاني (الرسومات 4 و 5 الجديدة) ---
+    st.markdown("---")
+    st.markdown("### 🏢 تحليل أداء الشركات وحجم الملفات")
+    chart_col3, chart_col4 = st.columns(2)
+    with chart_col3:
+        # (4) شريطي أفقي: أكبر 10 شركات حجماً
+        company_gb = current_data.groupby('top_folder')['Size (GB)'].sum().reset_index().sort_values(by='Size (GB)', ascending=False).head(10)
+        fig_bar_company = px.bar(company_gb, x='Size (GB)', y='top_folder', orientation='h', title='أكبر 10 شركات استهلاكاً للمساحة (GB)', color='Size (GB)', color_continuous_scale='Blues')
+        fig_bar_company.update_layout(yaxis={'categoryorder':'total ascending'})
+        st.plotly_chart(fig_bar_company, use_container_width=True)
+    with chart_col4:
+        # (5) رسم بياني مبعثر (Scatter): عدد الملفات vs الحجم لكل شركة
+        company_stats = current_data.groupby('top_folder').agg(num_files=('name', 'count'), total_gb=('Size (GB)', 'sum')).reset_index()
+        fig_scatter = px.scatter(company_stats, x='num_files', y='total_gb', text='top_folder', size='total_gb', color='total_gb', title='العلاقة بين عدد الملفات وإجمالي الحجم لكل شركة', labels={'num_files': 'عدد الملفات', 'total_gb': 'إجمالي الحجم (GB)'})
+        st.plotly_chart(fig_scatter, use_container_width=True)
+
+    # --- صف الرسومات الثالث (الرسومات 6 و 7 الجديدة) ---
+    st.markdown("---")
+    st.markdown("### 📦 تحليل توزيع الأنواع الهرمي والعمق")
+    chart_col5, chart_col6 = st.columns(2)
+    with chart_col5:
+        # (6) Tree Map: توزيع الأنواع داخل الشركات
+        fig_tree = px.treemap(current_data[current_data['extension'].isin(ext_df.head(5)['extension'])], path=['top_folder', 'extension'], values='Size (MB)', color='top_folder', title='مخطط Tree Map: توزيع أكبر 5 أنواع داخل الشركات')
+        st.plotly_chart(fig_tree, use_container_width=True)
+    with chart_col6:
+        # (7) رسم بياني خطي (Line): الحجم حسب العمق
+        depth_gb = current_data.groupby('path_depth')['Size (GB)'].sum().reset_index()
+        fig_line = px.line(depth_gb, x='path_depth', y='Size (GB)', title='توزيع إجمالي الحجم (GB) حسب العمق الهرمي للمجلدات', markers=True)
+        st.plotly_chart(fig_line, use_container_width=True)
+
+    # --- الرسم الثامن والأخير (جديد) ---
+    st.markdown("---")
+    st.markdown("### 📄 تحليل مكدس للشركات الكبرى والأصناف")
+    # (8) شريطي مكدس (Stacked Bar): توزيع الأنواع لأكبر 5 شركات عدداً
+    top_5_cos_by_count = current_data['top_folder'].value_counts().head(5).index
+    df_top_cos = current_data[current_data['top_folder'].isin(top_5_cos_by_count)]
+    # التركيز على أكبر 3 امتدادات فقط للوضوح
+    top_exts = ext_df.head(3)['extension'].tolist()
+    df_top_cos_exts = df_top_cos[df_top_cos['extension'].isin(top_exts)]
+    
+    fig_stacked = px.bar(df_top_cos_exts, x='top_folder', y='Size (GB)', color='extension', title='توزيع أكبر 3 أنواع ملفات (حجماً) داخل أكبر 5 شركات عدداً', labels={'Size (GB)': 'الحجم (GB)', 'top_folder': 'الشركة'})
+    st.plotly_chart(fig_stacked, use_container_width=True)
 
     st.markdown("---")
 
@@ -263,12 +257,14 @@ if not df.empty:
     st.markdown("<h2 class='section-header'>📥 تحميل تقارير البيانات (Excel)</h2>", unsafe_allow_html=True)
     st.write("احصل على ملف Excel يحتوي على كافة الصفوف الـ 10,000 والتفاصيل الكاملة.")
     
-    excel_data = to_excel(df)
-    st.download_button(label="📥 تحميل ملف Excel", data=excel_data, file_name='dropbox_data_10k.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='DropboxData')
+    processed_data = output.getvalue()
+    st.download_button(label="📥 تحميل ملف Excel", data=processed_data, file_name='dropbox_data_10k.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 else:
-    # سيتم عرض رسالة الخطأ من دالة load_data()
     pass
 
 st.markdown("---")
-st.caption("تم إنشاء هذه اللوحة الاحترافية جداً ببياناتك الفعلية من ملف 'خريطة ملفات الدروبكس.csv' باستخدام Streamlit, Pandas, & Plotly.")
+st.caption("تم إنشاء هذه اللوحة الاحترافية المطورة ببياناتك الفعلية من ملف 'خريطة ملفات الدروبكس.csv' باستخدام Streamlit, Pandas, & Plotly.")
