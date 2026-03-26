@@ -1,129 +1,101 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import os
 import io
+import xlsxwriter # تأكد من أن هذه المكتبة مثبتة لديك
 
-# --- إعدادات الصفحة ---
-st.set_page_config(page_title="Dropbox 10K Dynamic Pro Dashboard", layout="wide")
+# --- 1. إعدادات الصفحة الأساسية والتنسيق ---
+st.set_page_config(page_title="Dropbox 10K Dashboard", layout="wide")
 
-# --- تنسيق مخصص (CSS) لتحسين المظهر وجعل اللوحة احترافية جداً ---
 st.markdown("""
 <style>
-    /* تنسيق الحاوية الرئيسية للمؤشرات */
-    .kpi-container {
-        background-color: #f9f9f9;
-        padding: 30px;
-        border-radius: 15px;
-        margin-bottom: 30px;
-    }
-    /* تنسيق بطاقة المؤشر الواحد */
     .kpi-card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-        text-align: center;
-        border: 1px solid #e1e4e8;
+        background-color: white; padding: 20px; border-radius: 12px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05); text-align: center;
+        border: 1px solid #e1e4e8; margin-bottom: 20px;
     }
-    /* تنسيق عنوان المؤشر */
-    .kpi-title {
-        font-size: 14px;
-        color: #6a737d;
-        font-weight: 500;
-        margin-bottom: 8px;
-        text-transform: uppercase;
-    }
-    /* تنسيق قيمة المؤشر الرئيسية */
-    .kpi-value {
-        font-size: 26px;
-        font-weight: 800;
-        color: #1f77b4;
-    }
-    /* تنسيق النص الفرعي للمؤشر */
-    .kpi-sub {
-        font-size: 13px;
-        color: #888;
-        margin-top: 5px;
-    }
-    /* تنسيق العناوين الرئيسية */
-    .section-header {
-        color: #1f77b4;
-        font-weight: bold;
-        border-bottom: 2px solid #1f77b4;
-        padding-bottom: 12px;
-        margin-top: 40px;
-        margin-bottom: 25px;
-    }
+    .kpi-title { font-size: 16px; color: #6a737d; margin-bottom: 8px; }
+    .kpi-value { font-size: 30px; font-weight: bold; color: #1f77b4; }
+    .kpi-sub { font-size: 14px; color: #888; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- عنوان التطبيق ---
-st.title("📊 لوحة تحكم Dropbox الاحترافية الديناميكية (تحليل عميق لـ 10K ملف)")
+# --- العنوان ---
+st.title("📊 لوحة تحكم Dropbox (10,000 ملف الحقيقيين)")
 st.markdown("---")
 
-# --- دالة لتحميل وتنظيف البيانات (مع دمج 'جدير') ---
+# --- 2. تحميل البيانات بطريقة مضمونة جداً ومبسطة ---
 @st.cache_data
-def load_data():
-    # اسم ملف البيانات الفعلي الذي قدمته (تأكد من وجوده في نفس مجلد الكود)
-    data_file = 'خريطة_ملفات_الدروبكس_المعدلة.csv'
+def load_data_guaranteed():
+    # اسم ملف البيانات الفعلي الذي قدمته (يجب أن يكون في نفس مجلد الكود)
+    file_path = 'خريطة_ملفات_الدروبكس_المعدلة.csv'
     
-    # التأكد من وجود الملف في نفس مجلد الكود
-    if not os.path.exists(data_file):
-        st.error(f"⚠️ لم يتم العثور على ملف البيانات: '{data_file}'. تأكد من وضعه في نفس مجلد الكود وان اسمه صحيح تماماً.")
-        return pd.DataFrame()
-
     try:
-        # قراءة الملف، مع التأكد من ترميز utf-8 للقراءة الحروف العربية
-        df = pd.read_csv(data_file, encoding='utf-8') 
+        # قراءة البيانات الخام بأبسط طريقة ممكنة لتجنب أي مشاكل في الترميز أو الحقول الفارغة
+        # نخبره بوضوح أن الترميز هو utf-8 لقراءة الحروف العربية
+        raw_df = pd.read_csv(file_path, encoding='utf-8')
         
-        # تنظيف البيانات الأساسي: إزالة الصفوف الفارغة بالكامل
-        df.dropna(how='all', inplace=True)
+        # تنظيف البيانات الأساسي
+        raw_df.dropna(how='all', inplace=True) # إزالة الصفوف الفارغة بالكامل
         
-        # تحويل عمود الحجم إلى ميغابايت (MB) من عمود 'Size (Bytes)' الموجود في ملفك
-        if 'Size (Bytes)' in df.columns:
-            df['Size (MB)'] = pd.to_numeric(df['Size (Bytes)']) / (1024 * 1024) # تحويل من بايت لـ MB
-            df['Size (GB)'] = df['Size (MB)'] / 1024 # تحويل لـ GB
-        else:
-             st.warning("تنبيه: لم يتم العثور على عمود 'Size (Bytes)'.")
+        # تحويل الحجم من بايت إلى ميغابايت (MB) وجيجابايت (GB)
+        if 'Size (Bytes)' in raw_df.columns:
+            raw_df['Size (Bytes)'] = pd.to_numeric(raw_df['Size (Bytes)'], errors='coerce').fillna(0)
+            raw_df['Size (MB)'] = raw_df['Size (Bytes)'] / (1024 * 1024)
+            raw_df['Size (GB)'] = raw_df['Size (MB)'] / 1024
             
-        # --- الإجراء الحاسم: دمج كافة أقسام 'جدير' في ملف واحد ---
-        # إنشاء عمود للشركة الرئيسية (الجزء الأول من المسار)
-        df['top_folder'] = df['parent_path'].apply(lambda x: x.split('/')[0])
+        # إنشاء عمود الشركة المدمج (للتجميع المستقبلي إذا لزم الأمر)
+        raw_df['Main Company'] = raw_df['parent_path'].apply(lambda x: str(x).split('/')[0])
+        raw_df.loc[raw_df['Main Company'].str.startswith('Jadeer'), 'Main Company'] = 'Jadeer'
         
-        # استبدال كافة المسارات التي تبدأ بـ 'Jadeer' لتصبح 'Jadeer' فقط في عمود الشركة الرئيسية
-        df.loc[df['top_folder'].str.startswith('Jadeer'), 'top_folder'] = 'Jadeer'
-        
-        return df
+        return raw_df
+    
     except Exception as e:
-        st.error(f"حدث خطأ أثناء قراءة الملف: {e}")
+        # في حال حدوث خطأ، قم بطباعة رسالة واضحة للمستخدم
+        st.error(f"⚠️ حدثت مشكلة في قراءة ملف البيانات: '{file_path}'. \n\nتأكد من أن الملف موجود في نفس مجلد الكود، وأن اسمه صحيح تماماً، وأنه ملف CSV برمز utf-8. \n\nالخطأ التقني: {e}")
         return pd.DataFrame()
 
-# --- دالة لإنشاء مؤشرات KPIs احترافية وديناميكية (المطورة بـ 11 مؤشر) ---
-def render_kpis(filtered_df, total_files, title_prefix="للكل"):
-    st.markdown(f"<h3 class='section-header'>📌 مؤشرات أداء رئيسية متقدمة ({title_prefix})</h3>", unsafe_allow_html=True)
+# --- دالة لإنشاء ملف Excel للتحميل ---
+def convert_df_to_excel(df):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='DropboxData')
+    processed_excel = output.getvalue()
+    return processed_excel
+
+# --- تنفيذ تحميل البيانات ---
+# نقوم بوضع تحميل البيانات خارج st.empty() لضمان التنفيذ أولاً
+main_df = load_data_guaranteed()
+
+# --- 3. بناء لوحة التحكم بناءً على نجاح التحميل ---
+# إذا كانت البيانات فارغة، فهذا يعني أن دالة تحميل البيانات فشلت وطبعت رسالة الخطأ الخاصة بها.
+if main_df.empty:
+    st.warning("⚠️ لا يمكن تحميل لوحة التحكم لعدم توفر البيانات. يرجى مراجعة رسالة الخطأ أعلاه.")
+else:
+    # --- صف المؤشرات الاحترافية الـ 7 المدمج ---
+    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
     
-    # --- الصف الأول من المؤشرات (6 مؤشرات) ---
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    
-    # حساب القيم الأساسية
-    num_files = len(filtered_df)
-    total_size_mb = filtered_df['Size (MB)'].sum()
-    total_size_gb = filtered_df['Size (GB)'].sum()
-    avg_size_mb = filtered_df['Size (MB)'].mean()
+    # حساب القيم الأساسية بدقة من البيانات الحقيقية الـ 10K
+    num_total_files = len(main_df)
+    total_size_gb_all = main_df['Size (GB)'].sum()
+    avg_size_mb_all = main_df['Size (MB)'].mean()
     
     # الشركة الأكثر استهلاكاً
-    top_company = filtered_df.groupby('top_folder')['Size (MB)'].sum().idxmax()
-    top_company_size_mb = filtered_df.groupby('top_folder')['Size (MB)'].sum().max()
+    top_consumption_company = main_df.groupby('Main Company')['Size (MB)'].sum().idxmax()
+    top_consumption_size_gb = main_df.groupby('Main Company')['Size (GB)'].sum().max()
     
-    # النوع الأكثر شيوعاً (حجماً)
-    total_mb_all = filtered_df['Size (MB)'].sum()
-    top_ext_size = filtered_df.groupby('extension')['Size (MB)'].sum().idxmax()
-    top_ext_size_mb = filtered_df.groupby('extension')['Size (MB)'].sum().max()
-    if total_mb_all > 0:
-        top_ext_perc = (top_ext_size_mb / total_mb_all) * 100
-    else:
-        top_ext_perc = 0
+    # النوع المهيمن (حجماً)
+    top_ext_by_size = main_df.groupby('extension')['Size (MB)'].sum().idxmax()
+    top_ext_size_gb = main_df.groupby('extension')['Size (GB)'].sum().max()
     
-    # أكبر ملف منفرد
-    largest_
+    # أكثر المجلدات عمقاً
+    main_df['path_depth_lvl'] = main_df['parent_path'].apply(lambda x: len(str(x).split('/')))
+    max_h_depth = main_df['path_depth_lvl'].max()
+    
+    # عرض المؤشرات السبعة الأنيقة
+    with col1:
+        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>إجمالي الملفات</div><div class='kpi-value'>{num_total_files:,}</div></div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>إجمالي الحجم (GB)</div><div class='kpi-value'>{total_size_gb_all:.2f}</div></div>", unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"<div class='kpi-card'><div class='kpi-title'>الشركة الأكثر استهلاكاً</div><div class='kpi
