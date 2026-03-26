@@ -62,7 +62,7 @@ st.markdown("""
 st.title("📊 لوحة تحكم Dropbox الاحترافية الديناميكية (تحليل عميق لـ 10K ملف)")
 st.markdown("---")
 
-# --- دالة لتحميل وتنظيف البيانات (مع دمج 'جدير' وطريقة مضمونة) ---
+# --- دالة لتحميل وتنظيف البيانات  ---
 @st.cache_data
 def load_data():
     # اسم ملف البيانات الفعلي الذي قدمته (يجب أن يكون في نفس مجلد الكود)
@@ -102,7 +102,7 @@ def load_data():
 
 # --- دالة لإنشاء مؤشرات KPIs احترافية وديناميكية ومضمونة التشغيل (12 مؤشر) ---
 def render_kpis(filtered_df, total_files_all, title_prefix="للكل"):
-    st.markdown(f"<h3 class='section-header'>📌 مؤشرات أداء رئيسية متقدمة لـ 10K ملف الحقيقيين ({title_prefix})</h3>", unsafe_allow_html=True)
+    st.markdown(f"<h3 class='section-header'>📌 مؤشرات أداء رئيسية متقدمة لـ 10K  ({title_prefix})</h3>", unsafe_allow_html=True)
     
     # تنسيق الـ KPIs الـ 12 في صفين (6 مؤشرات في كل صف)
     col1, col2, col3, col4, col5, col6 = st.columns(6)
